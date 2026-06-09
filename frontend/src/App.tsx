@@ -1,17 +1,18 @@
-import { AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TabBar } from '@/components/layout/TabBar';
+import { AlertContainer } from '@/components/ui/Alert';
 import { CodeGenModal } from '@/components/modals/CodeGenModal';
+import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 import { EnvironmentModal } from '@/components/modals/EnvironmentModal';
-import { RequestBuilder } from '@/components/request/RequestBuilder';
-import { ResponseViewer } from '@/components/response/ResponseViewer';
+import { MoveToFolderModal } from '@/components/modals/MoveToFolderModal';
+import { RenameWorkspaceModal } from '@/components/modals/RenameWorkspaceModal';
+import { RequestResponseSplit } from '@/components/layout/RequestResponseSplit';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function App() {
-  const { initialize, isLoading, error, clearError, sendRequest, saveCurrentTab, openNewTab, environments } =
-    useAppStore();
+  const { initialize, isLoading, sendRequest, saveCurrentTab, openNewTab, environments } = useAppStore();
   const [envModalId, setEnvModalId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,13 +42,8 @@ export default function App() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <TabBar />
+        <RequestResponseSplit />
 
-        <div className="flex-1 flex flex-col min-h-0">
-          <RequestBuilder />
-          <ResponseViewer />
-        </div>
-
-        {/* Active environment indicator */}
         {environments.some((e) => e.is_active) && (
           <div className="px-4 py-1.5 bg-surface-50 border-t border-surface-200 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-400" />
@@ -68,21 +64,11 @@ export default function App() {
       </main>
 
       <CodeGenModal />
-      <EnvironmentModal
-        isOpen={!!envModalId}
-        onClose={() => setEnvModalId(null)}
-        environmentId={envModalId}
-      />
-
-      {error && (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm max-w-md">
-          <AlertCircle size={16} className="shrink-0" />
-          <span className="flex-1">{error}</span>
-          <button onClick={clearError} className="text-red-300 hover:text-white ml-2">
-            ✕
-          </button>
-        </div>
-      )}
+      <EnvironmentModal isOpen={!!envModalId} onClose={() => setEnvModalId(null)} environmentId={envModalId} />
+      <MoveToFolderModal />
+      <RenameWorkspaceModal />
+      <ConfirmDialog />
+      <AlertContainer />
     </div>
   );
 }

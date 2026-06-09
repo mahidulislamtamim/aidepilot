@@ -1,15 +1,33 @@
 import { Check, Copy } from 'lucide-react';
-import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/useAppStore';
-import { formatBytes, formatDuration, getStatusColor, tryFormatJson } from '@/utils/helpers';
+import { formatBytes, formatDuration, getStatusColor } from '@/utils/helpers';
+import {
+  BODY_FORMAT_LABELS,
+  detectDefaultFormat,
+  getContentType,
+  type ResponseBodyFormat,
+} from '@/utils/responseFormat';
 import { Button } from '../ui/Button';
+import { ResponseBody } from './ResponseBody';
+
+type TopView = 'body' | 'headers';
+
+const BODY_FORMATS: ResponseBodyFormat[] = ['preview', 'json', 'xml', 'raw', 'text'];
 
 export function ResponseViewer() {
   const { response, isSending } = useAppStore();
   const [copied, setCopied] = useState(false);
-  const [view, setView] = useState<'body' | 'headers'>('body');
+  const [topView, setTopView] = useState<TopView>('body');
+  const [bodyFormat, setBodyFormat] = useState<ResponseBodyFormat>('json');
+
+  useEffect(() => {
+    if (response) {
+      const contentType = getContentType(response.headers);
+      setBodyFormat(detectDefaultFormat(contentType, response.body));
+      setTopView('body');
+    }
+  }, [response]);
 
   const copyResponse = async () => {
     if (!response) return;
@@ -20,11 +38,11 @@ export function ResponseViewer() {
 
   if (isSending) {
     return (
-      <div className="h-64 border-t border-surface-200 flex flex-col">
-        <div className="px-4 py-2 border-b border-surface-200">
+      <div className="h-full flex flex-col">
+        <div className="px-4 py-2 border-b border-surface-200 shrink-0">
           <span className="text-xs text-gray-500">Response</span>
         </div>
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-0">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-gray-500">Sending request...</p>
@@ -36,37 +54,40 @@ export function ResponseViewer() {
 
   if (!response) {
     return (
-      <div className="h-48 border-t border-surface-200 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <p className="text-xs text-gray-600">Send a request to see the response</p>
       </div>
     );
   }
 
-  const formattedBody = tryFormatJson(response.body);
-  const isJson = formattedBody !== response.body || response.body.trim().startsWith('{') || response.body.trim().startsWith('[');
+  const contentType = getContentType(response.headers);
 
   return (
-    <div className="h-72 border-t border-surface-200 flex flex-col shrink-0">
-      {/* Response header bar */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-surface-200 bg-surface-50">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-4 px-4 py-2 border-b border-surface-200 bg-surface-50 shrink-0 flex-wrap">
         <span className="text-xs text-gray-500">Response</span>
         <span className={`text-sm font-semibold font-mono ${getStatusColor(response.status)}`}>
           {response.status} {response.statusText}
         </span>
         <span className="text-xs text-gray-500">{formatDuration(response.responseTime)}</span>
         <span className="text-xs text-gray-500">{formatBytes(response.size)}</span>
+        {contentType && (
+          <span className="text-xs text-gray-600 font-mono truncate max-w-[180px]" title={contentType}>
+            {contentType}
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <div className="flex bg-surface-100 rounded-md p-0.5">
             <button
-              className={`px-2.5 py-1 text-xs rounded ${view === 'body' ? 'bg-surface-200 text-white' : 'text-gray-500'}`}
-              onClick={() => setView('body')}
+              className={`px-2.5 py-1 text-xs rounded ${topView === 'body' ? 'bg-surface-200 text-white' : 'text-gray-500'}`}
+              onClick={() => setTopView('body')}
             >
               Body
             </button>
             <button
-              className={`px-2.5 py-1 text-xs rounded ${view === 'headers' ? 'bg-surface-200 text-white' : 'text-gray-500'}`}
-              onClick={() => setView('headers')}
+              className={`px-2.5 py-1 text-xs rounded ${topView === 'headers' ? 'bg-surface-200 text-white' : 'text-gray-500'}`}
+              onClick={() => setTopView('headers')}
             >
               Headers
             </button>
@@ -78,21 +99,27 @@ export function ResponseViewer() {
         </div>
       </div>
 
-      {/* Response content */}
-      <div className="flex-1 overflow-auto">
-        {view === 'body' ? (
-          isJson ? (
-            <SyntaxHighlighter
-              language="json"
-              style={vscDarkPlus}
-              customStyle={{ margin: 0, padding: '1rem', background: 'transparent', fontSize: '12px' }}
-              showLineNumbers
+      {topView === 'body' && (
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-surface-200 bg-surface shrink-0 overflow-x-auto">
+          {BODY_FORMATS.map((fmt) => (
+            <button
+              key={fmt}
+              className={`px-2.5 py-1 text-xs rounded whitespace-nowrap transition-colors ${
+                bodyFormat === fmt
+                  ? 'bg-accent/20 text-accent font-medium'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-surface-100'
+              }`}
+              onClick={() => setBodyFormat(fmt)}
             >
-              {formattedBody}
-            </SyntaxHighlighter>
-          ) : (
-            <pre className="p-4 text-xs font-mono text-gray-300 whitespace-pre-wrap break-all">{response.body}</pre>
-          )
+              {BODY_FORMAT_LABELS[fmt]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto min-h-0">
+        {topView === 'body' ? (
+          <ResponseBody body={response.body} contentType={contentType} format={bodyFormat} />
         ) : (
           <div className="p-4 space-y-1">
             {Object.entries(response.headers).map(([key, value]) => (

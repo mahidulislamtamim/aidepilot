@@ -3,8 +3,10 @@ import {
   Clock,
   Download,
   Folder,
+  FolderInput,
   FolderPlus,
   Globe,
+  Pencil,
   Plus,
   Search,
   Star,
@@ -26,7 +28,7 @@ export function Sidebar() {
     sidebarView,
     setActiveWorkspace,
     createWorkspace,
-    renameWorkspace,
+    openRenameWorkspace,
     deleteWorkspace,
     exportWorkspace,
     importWorkspace,
@@ -36,6 +38,8 @@ export function Sidebar() {
     duplicateRequest,
     deleteRequest,
     toggleFavorite,
+    openMoveToFolder,
+    showConfirm,
     setSearchQuery,
     setSidebarView,
     history,
@@ -67,19 +71,33 @@ export function Sidebar() {
     });
   };
 
+  const confirmDeleteRequest = (id: string, name: string) => {
+    showConfirm({
+      title: 'Delete Request',
+      message: `Are you sure you want to delete "${name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteRequest(id),
+    });
+  };
+
   const handleContextAction = async (action: string) => {
     if (!contextMenu) return;
     const { type, id } = contextMenu;
     setContextMenu(null);
 
     switch (action) {
-      case 'rename-workspace': {
-        const name = prompt('Workspace name:');
-        if (name) await renameWorkspace(id, name);
+      case 'rename-workspace':
+        openRenameWorkspace(id);
         break;
-      }
       case 'delete-workspace':
-        if (confirm('Delete this workspace and all its data?')) await deleteWorkspace(id);
+        showConfirm({
+          title: 'Delete Workspace',
+          message: 'Delete this workspace and all its data? This cannot be undone.',
+          confirmLabel: 'Delete',
+          variant: 'danger',
+          onConfirm: () => deleteWorkspace(id),
+        });
         break;
       case 'export-workspace':
         await exportWorkspace(id);
@@ -87,8 +105,13 @@ export function Sidebar() {
       case 'duplicate-request':
         await duplicateRequest(id);
         break;
-      case 'delete-request':
-        if (confirm('Delete this request?')) await deleteRequest(id);
+      case 'delete-request': {
+        const req = requests.find((r) => r.id === id);
+        if (req) confirmDeleteRequest(id, req.name);
+        break;
+      }
+      case 'move-request':
+        openMoveToFolder(id);
         break;
       case 'toggle-favorite':
         await toggleFavorite(id);
@@ -106,7 +129,6 @@ export function Sidebar() {
 
   return (
     <aside className="w-72 flex flex-col bg-surface-50 border-r border-surface-200 shrink-0">
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 h-14 border-b border-surface-200">
         <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
           <Globe size={18} className="text-white" />
@@ -117,7 +139,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Workspace selector */}
       <div className="p-3 border-b border-surface-200 space-y-2">
         <div className="flex items-center gap-1">
           <select
@@ -137,6 +158,15 @@ export function Sidebar() {
               </option>
             ))}
           </select>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Rename Workspace"
+            disabled={!activeWorkspaceId}
+            onClick={() => activeWorkspaceId && openRenameWorkspace(activeWorkspaceId)}
+          >
+            <Pencil size={14} />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -176,7 +206,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* View tabs */}
       <div className="flex border-b border-surface-200">
         {(['requests', 'history', 'environments'] as const).map((view) => (
           <button
@@ -245,7 +274,10 @@ export function Sidebar() {
                     <RequestItem
                       key={req.id}
                       request={req}
+                      indented
                       onOpen={() => openRequest(req)}
+                      onDelete={() => confirmDeleteRequest(req.id, req.name)}
+                      onMove={() => openMoveToFolder(req.id)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setContextMenu({ x: e.clientX, y: e.clientY, type: 'request', id: req.id });
@@ -260,6 +292,8 @@ export function Sidebar() {
                 key={req.id}
                 request={req}
                 onOpen={() => openRequest(req)}
+                onDelete={() => confirmDeleteRequest(req.id, req.name)}
+                onMove={() => openMoveToFolder(req.id)}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setContextMenu({ x: e.clientX, y: e.clientY, type: 'request', id: req.id });
@@ -291,9 +325,7 @@ export function Sidebar() {
                 <Clock size={10} />
                 <span>{new Date(h.created_at).toLocaleString()}</span>
                 {h.status_code && (
-                  <span className={h.status_code < 400 ? 'text-green-500' : 'text-red-400'}>
-                    {h.status_code}
-                  </span>
+                  <span className={h.status_code < 400 ? 'text-green-500' : 'text-red-400'}>{h.status_code}</span>
                 )}
                 {h.response_time && <span>{h.response_time}ms</span>}
               </div>
@@ -331,7 +363,6 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Context menu */}
       {contextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
@@ -351,6 +382,7 @@ export function Sidebar() {
             )}
             {contextMenu.type === 'request' && (
               <>
+                <ContextItem label="Move to Folder" onClick={() => handleContextAction('move-request')} />
                 <ContextItem label="Duplicate" onClick={() => handleContextAction('duplicate-request')} />
                 <ContextItem label="Toggle Favorite" onClick={() => handleContextAction('toggle-favorite')} />
                 <ContextItem label="Delete" danger onClick={() => handleContextAction('delete-request')} />
@@ -371,25 +403,56 @@ export function Sidebar() {
 
 function RequestItem({
   request,
+  indented,
   onOpen,
+  onDelete,
+  onMove,
   onContextMenu,
 }: {
   request: { id: string; name: string; method: string; is_favorite: number };
+  indented?: boolean;
   onOpen: () => void;
+  onDelete: () => void;
+  onMove: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
   return (
-    <button
-      className="flex items-center gap-2 w-full pl-6 pr-2 py-1.5 text-xs hover:bg-surface-100 rounded-md group"
-      onClick={onOpen}
+    <div
+      className={`flex items-center gap-1 w-full ${indented ? 'pl-4' : 'pl-1'} pr-1 py-0.5 rounded-md hover:bg-surface-100 group`}
       onContextMenu={onContextMenu}
     >
-      <span className={`font-mono font-semibold w-10 shrink-0 ${getMethodColor(request.method)}`}>
-        {request.method}
-      </span>
-      <span className="truncate text-gray-300 group-hover:text-white">{request.name}</span>
-      {!!request.is_favorite && <Star size={10} className="text-amber-400 shrink-0 ml-auto" fill="currentColor" />}
-    </button>
+      <button type="button" className="flex items-center gap-2 flex-1 min-w-0 px-1 py-1 text-xs" onClick={onOpen}>
+        <span className={`font-mono font-semibold w-10 shrink-0 ${getMethodColor(request.method)}`}>
+          {request.method}
+        </span>
+        <span className="truncate text-gray-300 group-hover:text-white text-left">{request.name}</span>
+        {!!request.is_favorite && <Star size={10} className="text-amber-400 shrink-0" fill="currentColor" />}
+      </button>
+      <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          title="Move to folder"
+          className="p-1 text-gray-500 hover:text-accent rounded transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove();
+          }}
+        >
+          <FolderInput size={13} />
+        </button>
+        <button
+          type="button"
+          title="Delete request"
+          className="p-1 text-gray-500 hover:text-red-400 rounded transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </div>
   );
 }
 

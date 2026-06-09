@@ -18,6 +18,25 @@ import type {
 } from '@/types';
 import { createNewTabState, editorStateToApiPayload, requestToEditorState } from '@/utils/helpers';
 
+export type AlertType = 'error' | 'success' | 'warning' | 'info';
+export type AlertDisplay = 'toast' | 'popup';
+
+export interface AppAlert {
+  message: string;
+  type: AlertType;
+  title?: string;
+}
+
+export interface ConfirmDialogState {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  variant?: 'danger' | 'default';
+  onConfirm: () => void | Promise<void>;
+}
+
+const ALERT_DISPLAY_KEY = 'aidepilot-alert-display';
+
 interface AppState {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
@@ -34,7 +53,11 @@ interface AppState {
   sidebarView: 'requests' | 'history' | 'environments';
   showCodeGen: boolean;
   codeGenType: 'curl' | 'fetch' | 'axios';
-  error: string | null;
+  alert: AppAlert | null;
+  alertDisplay: AlertDisplay;
+  confirmDialog: ConfirmDialogState | null;
+  moveToFolderRequestId: string | null;
+  renameWorkspaceId: string | null;
 
   initialize: () => Promise<void>;
   setActiveWorkspace: (id: string) => Promise<void>;
@@ -42,6 +65,8 @@ interface AppState {
 
   createWorkspace: (name: string) => Promise<void>;
   renameWorkspace: (id: string, name: string) => Promise<void>;
+  openRenameWorkspace: (id: string) => void;
+  closeRenameWorkspace: () => void;
   deleteWorkspace: (id: string) => Promise<void>;
   exportWorkspace: (id: string) => Promise<void>;
   importWorkspace: (file: File) => Promise<void>;
@@ -54,6 +79,9 @@ interface AppState {
   openRequest: (request: ApiRequest) => Promise<void>;
   duplicateRequest: (id: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
+  moveRequestToFolder: (requestId: string, folderId: string | null) => Promise<void>;
+  openMoveToFolder: (requestId: string) => void;
+  closeMoveToFolder: () => void;
   toggleFavorite: (id: string) => Promise<void>;
 
   openNewTab: () => void;
@@ -66,7 +94,11 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   setSidebarView: (view: 'requests' | 'history' | 'environments') => void;
   setShowCodeGen: (show: boolean, type?: 'curl' | 'fetch' | 'axios') => void;
-  clearError: () => void;
+  showAlert: (message: string, type?: AlertType, title?: string) => void;
+  clearAlert: () => void;
+  setAlertDisplay: (display: AlertDisplay) => void;
+  showConfirm: (dialog: ConfirmDialogState) => void;
+  clearConfirm: () => void;
 
   createEnvironment: (name: string) => Promise<void>;
   updateEnvironment: (id: string, data: Partial<Environment>) => Promise<void>;
@@ -98,10 +130,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarView: 'requests',
   showCodeGen: false,
   codeGenType: 'curl',
-  error: null,
+  alert: null,
+  alertDisplay: (localStorage.getItem(ALERT_DISPLAY_KEY) as AlertDisplay) || 'toast',
+  confirmDialog: null,
+  moveToFolderRequestId: null,
+  renameWorkspaceId: null,
 
   initialize: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, alert: null });
     try {
       const workspaces = await workspaceApi.getAll();
       set({ workspaces });
@@ -111,7 +147,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().openNewTab();
       }
     } catch (err) {
-      set({ error: (err as Error).message });
+      get().showAlert((err as Error).message, 'error', 'Failed to load');
     } finally {
       set({ isLoading: false });
     }
@@ -140,11 +176,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   renameWorkspace: async (id, name) => {
-    const workspace = await workspaceApi.update(id, { name });
-    set((s) => ({
-      workspaces: s.workspaces.map((w) => (w.id === id ? workspace : w)),
-    }));
+    try {
+      const workspace = await workspaceApi.update(id, { name: name.trim() });
+      set((s) => ({
+        workspaces: s.workspaces.map((w) => (w.id === id ? workspace : w)),
+      }));
+      get().showAlert('Workspace renamed successfully', 'success');
+    } catch (err) {
+      get().showAlert((err as Error).message, 'error', 'Rename failed');
+      throw err;
+    }
   },
+
+  openRenameWorkspace: (id) => set({ renameWorkspaceId: id }),
+  closeRenameWorkspace: () => set({ renameWorkspaceId: null }),
 
   deleteWorkspace: async (id) => {
     await workspaceApi.delete(id);
@@ -251,6 +296,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
+  moveRequestToFolder: async (requestId, folderId) => {
+    try {
+      const updated = await requestApi.update(requestId, { folder_id: folderId });
+      set((s) => ({
+        requests: s.requests.map((r) => (r.id === requestId ? updated : r)),
+        tabs: s.tabs.map((t) =>
+          t.requestId === requestId ? { ...t, data: { ...t.data, folder_id: folderId } } : t
+        ),
+        moveToFolderRequestId: null,
+      }));
+      get().showAlert('Request moved successfully', 'success');
+    } catch (err) {
+      get().showAlert((err as Error).message, 'error', 'Move failed');
+    }
+  },
+
+  openMoveToFolder: (requestId) => set({ moveToFolderRequestId: requestId }),
+  closeMoveToFolder: () => set({ moveToFolderRequestId: null }),
+
   openNewTab: () => {
     const tab: RequestTab = {
       id: newTabId(),
@@ -329,7 +393,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const tab = tabs.find((t) => t.id === activeTabId);
     if (!tab) return;
 
-    set({ isSending: true, response: null, error: null });
+    set({ isSending: true, response: null, alert: null });
     try {
       if (tab.isDirty || !tab.requestId) {
         await get().saveCurrentTab();
@@ -352,7 +416,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ history });
       }
     } catch (err) {
-      set({ error: (err as Error).message });
+      get().showAlert((err as Error).message, 'error', 'Request failed');
     } finally {
       set({ isSending: false });
     }
@@ -362,7 +426,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarView: (view) => set({ sidebarView: view }),
   setShowCodeGen: (show, type) =>
     set({ showCodeGen: show, codeGenType: type ?? get().codeGenType }),
-  clearError: () => set({ error: null }),
+  showAlert: (message, type = 'info', title) => set({ alert: { message, type, title } }),
+  clearAlert: () => set({ alert: null }),
+  setAlertDisplay: (display) => {
+    localStorage.setItem(ALERT_DISPLAY_KEY, display);
+    set({ alertDisplay: display });
+  },
+  showConfirm: (dialog) => set({ confirmDialog: dialog }),
+  clearConfirm: () => set({ confirmDialog: null }),
 
   createEnvironment: async (name) => {
     const { activeWorkspaceId } = get();

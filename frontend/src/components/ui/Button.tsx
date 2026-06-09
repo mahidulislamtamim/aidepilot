@@ -14,7 +14,7 @@ export function Button({ variant = 'secondary', size = 'md', className, children
         variant === 'primary' && 'btn-primary',
         variant === 'secondary' && 'btn-secondary',
         variant === 'ghost' && 'btn-ghost',
-        variant === 'danger' && 'btn-danger',
+        variant === 'danger' && 'btn-danger bg-red-500/20 border border-red-500/30 hover:bg-red-500/30',
         size === 'sm' && 'px-2 py-1 text-xs',
         className
       )}
