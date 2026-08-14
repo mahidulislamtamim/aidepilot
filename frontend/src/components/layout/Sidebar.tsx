@@ -5,7 +5,6 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
-  Globe,
   Pencil,
   Plus,
   Search,
@@ -130,9 +129,7 @@ export function Sidebar() {
   return (
     <aside className="w-72 flex flex-col bg-surface-50 border-r border-surface-200 shrink-0">
       <div className="flex items-center gap-2.5 px-4 h-14 border-b border-surface-200">
-        <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-          <Globe size={18} className="text-white" />
-        </div>
+        <img src="/logo.png" alt="AidePilot" className="w-8 h-8 rounded-lg object-cover shrink-0" />
         <div>
           <h1 className="text-sm font-bold text-white tracking-tight">AidePilot</h1>
           <p className="text-[10px] text-gray-500">API Testing Client</p>

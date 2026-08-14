@@ -2,8 +2,40 @@ import fs from 'fs';
 import path from 'path';
 import initSqlJs, { Database as SqlJsDatabase, SqlValue } from 'sql.js';
 
-const DB_PATH = path.join(__dirname, '../../data/aidepilot.db');
-const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+function resolveDbPath(): string {
+  if (process.env.AIDEPLOT_DATA_DIR) {
+    return path.join(process.env.AIDEPLOT_DATA_DIR, 'aidepilot.db');
+  }
+  return path.join(__dirname, '../../data/aidepilot.db');
+}
+
+function resolveSchemaPath(): string {
+  if (process.env.AIDEPLOT_SCHEMA_PATH && fs.existsSync(process.env.AIDEPLOT_SCHEMA_PATH)) {
+    return process.env.AIDEPLOT_SCHEMA_PATH;
+  }
+  const nextToDist = path.join(__dirname, 'schema.sql');
+  if (fs.existsSync(nextToDist)) return nextToDist;
+  return path.join(__dirname, '../../src/db/schema.sql');
+}
+
+function resolveWasmDir(): string {
+  if (process.env.AIDEPLOT_SQLJS_DIR && fs.existsSync(process.env.AIDEPLOT_SQLJS_DIR)) {
+    return process.env.AIDEPLOT_SQLJS_DIR;
+  }
+  // Prefer unpacked path when running from Electron asar
+  const candidates = [
+    path.join(__dirname, '../../../node_modules/sql.js/dist'),
+    path.join(__dirname, '../../../../node_modules/sql.js/dist'),
+    path.join(process.cwd(), 'node_modules/sql.js/dist'),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'sql-wasm.wasm'))) return dir;
+  }
+  return candidates[0];
+}
+
+const DB_PATH = resolveDbPath();
+const SCHEMA_PATH = resolveSchemaPath();
 
 export interface StatementResult {
   changes: number;
@@ -72,7 +104,10 @@ function createWrapper(db: SqlJsDatabase): DatabaseWrapper {
 export async function initDb(): Promise<DatabaseWrapper> {
   if (wrapper) return wrapper;
 
-  const SQL = await initSqlJs();
+  const wasmDir = resolveWasmDir();
+  const SQL = await initSqlJs({
+    locateFile: (file) => path.join(wasmDir, file),
+  });
 
   let db: SqlJsDatabase;
   if (fs.existsSync(DB_PATH)) {

@@ -83,16 +83,36 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ### Desktop (Electron)
 
 ```bash
-# Start dev servers + Electron window
+# Dev mode (Vite + Electron window)
 npm run electron:dev
+
+# Run packaged-like desktop app from local build
+npm run electron
 ```
 
-### Production Build
+### Windows installer (.exe)
+
+Build a Windows installer and portable executable:
 
 ```bash
-npm run build
-npm start
+# Creates NSIS installer + portable .exe under release/
+npm run dist
 ```
+
+Outputs (example):
+
+- `release/AidePilot-Setup-1.0.0.exe` — installable setup (NSIS)
+- `release/AidePilot-Portable-1.0.0.exe` — portable app (no install)
+- Unpacked test build: `npm run dist:dir` → `release/win-unpacked/AidePilot.exe`
+
+Requirements for packaging:
+
+- Windows x64
+- Run `npm install` once (includes `electron-builder`)
+- First build may download Electron binaries (needs network)
+- Code signing is disabled by default (`signAndEditExecutable: false`) so you do not need Windows Developer Mode for local builds
+
+The packaged app starts the local API server automatically and stores data under the OS user data folder.
 
 ## API Endpoints
 

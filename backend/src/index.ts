@@ -1,5 +1,8 @@
 import cors from 'cors';
 import express from 'express';
+import fs from 'fs';
+import type { Server } from 'http';
+import path from 'path';
 import { closeDb, initDb } from './db/database';
 import environmentsRouter from './routes/environments';
 import foldersRouter from './routes/folders';
@@ -8,7 +11,6 @@ import requestsRouter from './routes/requests';
 import workspacesRouter from './routes/workspaces';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -23,27 +25,70 @@ app.use('/api/requests', requestsRouter);
 app.use('/api/environments', environmentsRouter);
 app.use('/api/history', historyRouter);
 
+function mountStatic() {
+  const STATIC_DIR = process.env.AIDEPLOT_STATIC_DIR;
+  if (!STATIC_DIR || !fs.existsSync(STATIC_DIR)) return;
+
+  app.use(express.static(STATIC_DIR));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    const indexPath = path.join(STATIC_DIR, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+      return;
+    }
+    next();
+  });
+}
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   res.status(500).json({ error: err.message });
 });
 
-async function start() {
+let server: Server | null = null;
+
+export async function startServer(): Promise<{ port: number; host: string }> {
+  const PORT = Number(process.env.PORT || 3001);
+  const HOST = process.env.HOST || '0.0.0.0';
+
+  mountStatic();
   await initDb();
 
-  const server = app.listen(PORT, () => {
-    console.log(`AidePilot API running on http://localhost:${PORT}`);
+  await new Promise<void>((resolve, reject) => {
+    server = app.listen(PORT, HOST, () => resolve());
+    server.on('error', reject);
   });
 
-  process.on('SIGTERM', () => {
-    server.close();
-    closeDb();
-  });
+  console.log(`AidePilot API running on http://${HOST}:${PORT}`);
+  return { port: PORT, host: HOST };
 }
 
-start().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+export function stopServer(): void {
+  if (server) {
+    server.close();
+    server = null;
+  }
+  closeDb();
+}
+
+const isDirectRun =
+  typeof require !== 'undefined' &&
+  typeof module !== 'undefined' &&
+  require.main === module;
+
+if (isDirectRun) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+
+  const shutdown = () => {
+    stopServer();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
 
 export default app;

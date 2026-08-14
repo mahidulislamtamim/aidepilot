@@ -1,5 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#6366f1"/>
-  <path d="M8 16L14 10V13H20V19H14V22L8 16Z" fill="white"/>
-  <path d="M24 16L18 22V19H12V13H18V10L24 16Z" fill="white" opacity="0.6"/>
+  <defs>
+    <linearGradient id="ap" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#ap)"/>
+  <!-- Infinity loop: left = A, right = P -->
+  <path
+    d="M7.5 16c0-4.2 3.4-6.6 8.5 0 5.1 6.6 8.5 4.2 8.5 0s-3.4-6.6-8.5 0c-5.1 6.6-8.5 4.2-8.5 0z"
+    stroke="#fff"
+    stroke-width="2.35"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- A crossbar on the left loop -->
+  <path d="M10.2 16h5.1" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
 </svg>

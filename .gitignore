@@ -1,6 +1,8 @@
 node_modules/
 dist/
-build/
+build/*
+!build/icon.png
+!build/icon.ico
 *.db
 *.db-journal
 .env
@@ -11,3 +13,4 @@ Thumbs.db
 coverage/
 .vite/
 electron/dist/
+release/

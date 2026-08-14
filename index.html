@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AidePilot — Installation</title>
+    <link rel="icon" type="image/png" href="frontend/public/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -54,13 +55,8 @@
         width: 48px;
         height: 48px;
         border-radius: 12px;
-        background: var(--accent);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 1.25rem;
-        color: #fff;
+        object-fit: cover;
+        display: block;
       }
 
       h1 {
@@ -230,7 +226,7 @@
   <body>
     <div class="container">
       <header>
-        <div class="logo">AP</div>
+        <img class="logo" src="frontend/public/logo.png" alt="AidePilot logo" />
         <div>
           <h1>AidePilot</h1>
           <p class="tagline">A modern, lightweight API testing client</p>
